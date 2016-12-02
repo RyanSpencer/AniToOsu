@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MAL to Osu</title>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+<script>
+    $(document).ready(function() {
+        
+       $("#searchForm").submit(function(e) {
+           var action = $("#searchForm").attr("action");
+           var term = $("#searchTerm").val();
+           
+           $.ajax({
+               cache: false,
+               type: 'get',
+               url: action,
+               data: "term=" + term,
+               dataType: 'xml',
+               success: function(result, status, xhr) {
+                   //var resultText = JSON.stringify(result);
+                   var xml = result.querySelectorAll('anime');
+                   var bigString = "";
+                   for (var i = 0; i < xml.length; i++) {
+                       bigString += "<h2>" + xml[i].querySelector('series_title').firstChild.nodeValue + "</h2>";
+                       if (xml[i].querySelector('series_synonyms').firstChild == null) {}
+                       else {
+                           var name = xml[i].querySelector('series_synonyms').firstChild.nodeValue.split(';');
+                           for (var j = 0; j < name.length; j++) {
+                               if (name[j] != "" || name[j] === xml[i].querySelector('series_title').firstChild.nodeValue) {
+                                   bigString += "<h2>" + name[j] + "</h2>";
+                               }
+                           }
+                       }                       
+                   }
+                   $("#result").html(bigString);
+               },
+               error: function(error, status, xhr) {
+                   var resultText = JSON.stringify(error);
+                   $("#result").text(resultText);
+               }
+           });
+           
+           e.preventDefault();
+           return false;
+       }); 
+    });
+</script>
+</head>
+<body>
+<div id="result">
+<form id="searchForm" action="/userSearch" method="get">
+    <input id="searchTerm" type="text" name="term" placeholder="Your MAL Username">
+    <input type="Submit" value="Enter you MyAnimeList Username">
+</form>
+</div>
+</body>
+</html>
