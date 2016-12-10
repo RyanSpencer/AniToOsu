@@ -3,14 +3,75 @@
 <head>
 <meta charset="utf-8">
 <title>MAL to Osu</title>
+<link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet"> 
+<style type="text/css">
+    body {
+        background: rgb(169, 169, 255);
+        font-family:  'Roboto', sans-serif;
+    }
+    .osuMap {
+        border: 2px solid white;
+        background: #efcfe1;
+        padding: 10px;
+        margin: 10px;
+        padding-bottom: 30px;
+        animation-duration: 3s;
+        animation-name: slideUp;
+    }
+    @keyFrames slideUp {
+        from {
+            margin-top: 100%;
+            height: 300%;
+        }
+        to {
+            margin-top 10px;
+            height: 100%;
+        }
+    }
+    .osuMap img {
+        float: right;
+    }
+    #result {
+        width: 60%;
+        margin: auto;
+    }
+    #return {
+        float: left;
+        background: #efcfe1;
+        margin: 10px;
+        padding: 10px;
+        display: none;
+        border: 2px solid white;
+    }
+    #Instructions {
+        background: #efcfe1;
+        margin: 10px;
+        padding: 10px;
+        border: 2px solid white;
+        margin: auto;
+        text-align: center;
+    }
+</style>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
 <script>
+    //Use local storage to save last searched username
+    window.onload = function() {
+        //As long as the lsat search exists
+        if (localStorage.getItem("lastSearch") != null)
+            {
+                document.querySelector("#searchTerm").textContent = localStorage.getItem("lastSearch");
+            }
+            
+    }
     $(document).ready(function() {
         
+        //Once user enters the username
        $("#searchForm").submit(function(e) {
+           //get the term and link to send to server
            var action = $("#searchForm").attr("action");
            var term = $("#searchTerm").val();
-           
+           //Set localstorage to term searched
+           localStorage.setItem("lastSearch", term);
            $.ajax({
                cache: false,
                type: 'get',
@@ -18,29 +79,81 @@
                data: "term=" + term,
                dataType: 'xml',
                success: function(result, status, xhr) {
-                   //var resultText = JSON.stringify(result);
+                   //on sucesfull ajax request, get xml doc
                    var xml = result.querySelectorAll('anime');
                    var bigString = "";
                    for (var i = 0; i < xml.length; i++) {
-                       bigString += "<h2>" + xml[i].querySelector('series_title').firstChild.nodeValue + "</h2>";
+                       //start making a string of titles seperated by a carrot(^)
+                       if (i > 0) {
+                           bigString += "^" + xml[i].querySelector('series_title').firstChild.nodeValue;
+                       }
+                       else {
+                            bigString += xml[i].querySelector('series_title').firstChild.nodeValue;
+                       }
+                       //Also loop through the series synoynms, only if they don exist
                        if (xml[i].querySelector('series_synonyms').firstChild == null) {}
                        else {
                            var name = xml[i].querySelector('series_synonyms').firstChild.nodeValue.split(';');
                            for (var j = 0; j < name.length; j++) {
-                               if (name[j] != "" || name[j] === xml[i].querySelector('series_title').firstChild.nodeValue) {
-                                   bigString += "<h2>" + name[j] + "</h2>";
+                               //Makes sure the alternate title is blakn or the same as a previous title
+                               if (name[j] !== "" && name[j] !== xml[i].querySelector('series_title').firstChild.nodeValue) {
+                                   bigString += "^" + name[j];
                                }
                            }
-                       }                       
+                       }
                    }
-                   $("#result").html(bigString);
+                   //Now querying the osu api
+                   var url = "https://osu.ppy.sh/api/get_beatmaps?k=1a0c96b12be5e3f5e62e46df4bf62bb30d2609f3";
+                       url = encodeURI(url);
+                       $.ajax({
+                           dataType: "json",
+                           url: url,
+                           data:null,
+                           success: function(obj) {
+                               //create an array for the matching maps and split the shows string into an array
+                               var maps = [];
+                               var shows = bigString.split('^');
+                               for (var i = 0; i < obj.length; i++) {
+                                   for( var j = 0; j < shows.length; j++) {
+                                       //Each beatmap entry is of a seperate dificulty, meaning one beatmap with 5 different difficulties will have 5 entries
+                                       //The beatmapset id will always be the same for each so check if we already had that set id and if so ignore it
+                                        if (i > 0 && obj[i].beatmapset_id != obj[i-1].beatmapset_id) {
+                                            //If a show matches the source of the beatmap then add it to the array
+                                            if (shows[j] === obj[i].source)
+                                                {
+                                                    maps.push(obj[i]);
+                                                }
+                                        }
+                                   }
+                                   
+                               }
+                               var displayedHTML = "";
+                               for (var i = 0; i < maps.length; i++) {
+                                   //Compile the each result using custom div
+                                   displayedHTML += "<div class='osuMap'>";
+                                   //Add a link to the beatmap to open it in a new tab when you click on osu image
+                                   displayedHTML += "<a href='https://osu.ppy.sh/s/" + maps[i].beatmapset_id + "' target='_blank'><img src='head-logo.png' alt='link' height='175' width='175'></a>";
+                                   displayedHTML += "<h2>" + maps[i].title + "</h2>";
+                                   displayedHTML += "<h3>By: " + maps[i].artist + "</h3>";
+                                   displayedHTML += "<h3>From: " + maps[i].source + "</h3>";
+                                   displayedHTML += "</div>";
+                               }
+                               //add the results into the html page
+                               $("#result").html(displayedHTML);
+                               //Show the div to return to the search page
+                               document.querySelector("#return").style.display = "block";
+                               $("#return").click( function(e) {
+                                   //When clicked just reload the page
+                                   location.reload(); 
+                               });
+                           }
+                       });
                },
                error: function(error, status, xhr) {
                    var resultText = JSON.stringify(error);
                    $("#result").text(resultText);
                }
            });
-           
            e.preventDefault();
            return false;
        }); 
@@ -48,11 +161,21 @@
 </script>
 </head>
 <body>
+<div id="return"><p>Click to go back to search</p></div>
 <div id="result">
-<form id="searchForm" action="/userSearch" method="get">
-    <input id="searchTerm" type="text" name="term" placeholder="Your MAL Username">
-    <input type="Submit" value="Enter you MyAnimeList Username">
-</form>
+    <div id="Instructions">
+        <h2>
+        MAL to OSU conversion
+        </h2>
+        <form id="searchForm" action="/userSearch" method="get">
+            <input id="searchTerm" type="text" name="term" placeholder="Your MAL Username">
+            <input type="Submit" value="Search for Maps">
+        </form>
+        <h3>
+        Instruction: Once you enter your MyAnimeList username it will get your full list and return any Beatmap sets out of the 500 most popular that match your seen anime
+        </h3>
+    </div>
 </div>
+<img style="display:none" src="head-logo.png">
 </body>
 </html>

@@ -23,14 +23,22 @@ function onRequest(req, res) {
     console.dir(parsedURL.pathname);
     console.dir(params);
     
-    if (parsedURL.pathname === "/userSearch") {
-        var term = "https://myanimelist.net/malappinfo.php?u=" + params.term + "&status=all&type=anime";
-        res = userSearch(req, res, term);
+    //Load the image when it gets passed in
+    if (parsedURL.pathname === "/head-logo.png") {
+        var file = fs.readFileSync(__dirname + "/../client/head-logo.png");
+        res.writeHead(200, {"Content-Type": "image/png"});
+        res.end(file, 'binary');
     }
-    else {
+    //If nothing is passed just load the page
+    if (parsedURL.pathname === "/") {
         res.writeHead(200, {"Content-Type" : "text/html"});
         res.write(index);
         res.end();
+    }
+    //When this is passed in the we call the fucntion
+    if (parsedURL.pathname === "/userSearch") {
+        var term = "https://myanimelist.net/malappinfo.php?u=" + params.term + "&status=all&type=anime";
+        res = userSearch(req, res, term);
     }
 }
 
@@ -40,6 +48,7 @@ function userSearch(req, res, params) {
     console.dir(params);
     
     try {
+        //If it can connect then we pipe in the information
         res.writeHead(200, responseHeaders);
         
         requestHandler(params).pipe(res);
