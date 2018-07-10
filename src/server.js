@@ -8,14 +8,6 @@ var port = process.env.PORT || process.env.NODE_PORT || 3000;
 
 var index = fs.readFileSync(__dirname + "/../client/index.html");
 
-var responseHeaders = {  
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "access-control-allow-headers": "Content-Type, accept",
-    "access-control-max-age": 10,
-    "Content-Type": "application/json"
-};
-
 function onRequest(req, res) {
     var parsedURL = url.parse(req.url);
     var params = query.parse(parsedURL.query);
@@ -37,8 +29,7 @@ function onRequest(req, res) {
     }
     //When this is passed in the we call the fucntion
     if (parsedURL.pathname === "/userSearch") {
-        var term = "https://myanimelist.net/malappinfo.php?u=" + params.term + "&status=all&type=anime";
-        res = userSearch(req, res, term);
+        res = userSearch(req, res, params.term);
     }
 }
 
@@ -49,9 +40,42 @@ function userSearch(req, res, params) {
     
     try {
         //If it can connect then we pipe in the information
-        res.writeHead(200, responseHeaders);
-        
-        requestHandler(params).pipe(res);
+      
+        var queryString = `
+        query($id: String) {
+          MediaListCollection(userName: $id, type: ANIME) {
+            lists {
+              entries {
+                media {
+                  title {
+                    romaji
+                    english
+                  }
+                }
+              }
+            }
+          }  
+        }
+        `;
+      
+        var variables = {
+          id: params
+        };
+      
+        var url = 'https://graphql.anilist.co',
+              options ={
+                  method: 'POST',
+                  headers: {
+                    "Accept": 'application/json',
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    query: queryString,
+                    variables: variables,
+                  })
+              };
+      
+        requestHandler(url, options).pipe(res)
     }
     catch(exception) {
         console.dir(exception);

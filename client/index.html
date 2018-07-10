@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>MAL to Osu</title>
+<title>AniList to Osu</title>
 <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet"> 
 <style type="text/css">
     body {
@@ -53,7 +53,7 @@
     }
 </style>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
-<script>
+<script>  
     //Use local storage to save last searched username
     window.onload = function() {
         //As long as the lsat search exists
@@ -77,33 +77,25 @@
                type: 'get',
                url: action,
                data: "term=" + term,
-               dataType: 'xml',
+               dataType: 'JSON',
                success: function(result, status, xhr) {
+                   console.dir(result);
                    //on sucesfull ajax request, get xml doc
-                   var xml = result.querySelectorAll('anime');
+                   var series = result.data.MediaListCollection.lists;
                    var bigString = "";
-                   for (var i = 0; i < xml.length; i++) {
-                       //start making a string of titles seperated by a carrot(^)
-                       if (i > 0) {
-                           bigString += "^" + xml[i].querySelector('series_title').firstChild.nodeValue;
-                       }
-                       else {
-                            bigString += xml[i].querySelector('series_title').firstChild.nodeValue;
-                       }
-                       //Also loop through the series synoynms, only if they don exist
-                       if (xml[i].querySelector('series_synonyms').firstChild == null) {}
-                       else {
-                           var name = xml[i].querySelector('series_synonyms').firstChild.nodeValue.split(';');
-                           for (var j = 0; j < name.length; j++) {
-                               //Makes sure the alternate title is blakn or the same as a previous title
-                               if (name[j] !== "" && name[j] !== xml[i].querySelector('series_title').firstChild.nodeValue) {
-                                   bigString += "^" + name[j];
-                               }
-                           }
-                       }
+                   for (var i = 0; i < series.length; i++) {
+                      //start making a string of titles seperated by a carrot(^)
+                      var sectionList = series[i].entries;
+                      for (var j = 0; j < sectionList.length; j++) {  
+                        bigString += ((i == 0 && j == 0) ? "" : "^") + sectionList[j].media.title.english;
+                        if (sectionList[j].media.title.english != sectionList[j].media.title.romaji && sectionList[j].media.title.romaji) 
+                          bigString += "^" + sectionList[j].media.title.romaji;
+                        }
                    }
+                  var today = new Date(Date.now() - 604800000).toISOString().slice(0,10);
+                  
                    //Now querying the osu api
-                   var url = "https://osu.ppy.sh/api/get_beatmaps?k=1a0c96b12be5e3f5e62e46df4bf62bb30d2609f3";
+                   var url = "https://osu.ppy.sh/api/get_beatmaps?k=1a0c96b12be5e3f5e62e46df4bf62bb30d2609f3&since=" + today;
                        url = encodeURI(url);
                        $.ajax({
                            dataType: "json",
@@ -111,24 +103,53 @@
                            data:null,
                            success: function(obj) {
                                //create an array for the matching maps and split the shows string into an array
+                               var listOfMaps = obj;
                                var maps = [];
                                var shows = bigString.split('^');
-                               for (var i = 0; i < obj.length; i++) {
-                                   for( var j = 0; j < shows.length; j++) {
-                                       //Each beatmap entry is of a seperate dificulty, meaning one beatmap with 5 different difficulties will have 5 entries
-                                       //The beatmapset id will always be the same for each so check if we already had that set id and if so ignore it
-                                        if (i > 0 && obj[i].beatmapset_id != obj[i-1].beatmapset_id) {
-                                            //If a show matches the source of the beatmap then add it to the array
-                                            if (shows[j] === obj[i].source)
-                                                {
-                                                    maps.push(obj[i]);
-                                                }
+                               for (var t = 0; t < 20; t++) {
+                                 var oldestDate = new Date(listOfMaps[0].approved_date); 
+                                 var milli = oldestDate.getTime();
+                                 var newDate = new Date(milli - 604800000).toISOString().slice(0,10);
+                                 console.dir(newDate);
+                                 console.dir(listOfMaps);
+                                 for (var i = 0; i < listOfMaps.length; i++) {
+                                  for( var j = 0; j < shows.length; j++) {
+                                    //Each beatmap entry is of a seperate dificulty, meaning one beatmap with 5 different difficulties will have 5 entries
+                                    //The beatmapset id will always be the same for each so check if we already had that set id and if so ignore it
+                                    if (i > 0 && listOfMaps[i].beatmapset_id != listOfMaps[i-1].beatmapset_id) {
+                                      //If a show matches the source of the beatmap then add it to the array
+                                      if (shows[j] === listOfMaps[i].source)
+                                        {
+                                          if (!maps[0])
+                                            maps.push(listOfMaps[i]);
+                                          else {
+                                            for (var k = 0; k < maps.length; k++) {
+                                              if (maps[k].beatmapset_id == listOfMaps[i].beatmapset_id) {
+                                                break;
+                                              }
+                                              if (k == maps.length - 1) 
+                                                maps.push(listOfMaps[i]);
+                                            }
+                                          }
                                         }
-                                   }
-                                   
+                                    }
+                                  }
+                                }
+                                if (t < 19) {
+                                  var url = "https://osu.ppy.sh/api/get_beatmaps?k=1a0c96b12be5e3f5e62e46df4bf62bb30d2609f3&since=" + newDate;
+                                  url = encodeURI(url);
+                                  $.ajax({ dataType:"json",
+                                           url: url,
+                                           async: false,
+                                           data: null,
+                                           success: function(newObj){listOfMaps = newObj;}
+                                         });
+                                  }
                                }
+                               console.dir(maps);
                                var displayedHTML = "";
                                for (var i = 0; i < maps.length; i++) {
+                                  console.dir(maps[i]);
                                    //Compile the each result using custom div
                                    displayedHTML += "<div class='osuMap'>";
                                    //Add a link to the beatmap to open it in a new tab when you click on osu image
@@ -165,17 +186,22 @@
 <div id="result">
     <div id="Instructions">
         <h2>
-        MAL to OSU conversion
+        AniList to OSU conversion
         </h2>
         <form id="searchForm" action="/userSearch" method="get">
             <input id="searchTerm" type="text" name="term" placeholder="Your MAL Username">
             <input type="Submit" value="Search for Maps">
         </form>
         <h3>
-        Instruction: Once you enter your MyAnimeList username it will get your full list and return any Beatmap sets out of the 500 most popular that match your seen anime
+        Instruction: Once you enter your AniList username it will get your full list and return any Beatmap sets from the past twenty weeks
+        </h3>
+        <br />
+        <h3>
+        Why Twenty Weeks: Currently the osu api does not allow someone to search by any terms and attempts to convice them to put in functionality appear to be in vain, so for the future this will stay capped at
+          twenty weeks to avoid sending too many requests and prevent loading from taking too long.
         </h3>
     </div>
 </div>
-<img style="display:none" src="head-logo.png">
+<img style="display:none" src="head-logo.png" alt="test image">
 </body>
 </html>
